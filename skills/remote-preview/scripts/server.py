@@ -15,7 +15,9 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
-SHARE_DIR = Path('/root/.openclaw/workspace/openclaw-skills/skills/remote-preview/share')
+# Use relative path from script location for portability
+SCRIPT_DIR = Path(__file__).parent.parent
+SHARE_DIR = SCRIPT_DIR / 'share'
 SHARE_DIR.mkdir(parents=True, exist_ok=True)
 
 class PreviewHandler(SimpleHTTPRequestHandler):
