@@ -15,7 +15,7 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
-SHARE_DIR = Path('/root/.openclaw/workspace/skills/remote-preview/share')
+SHARE_DIR = Path('/root/.openclaw/workspace/openclaw-skills/skills/remote-preview/share')
 SHARE_DIR.mkdir(parents=True, exist_ok=True)
 
 class PreviewHandler(SimpleHTTPRequestHandler):
@@ -48,6 +48,13 @@ class PreviewHandler(SimpleHTTPRequestHandler):
                 return
             
             # File preview
+            if file_path.suffix.lower() == '.pdf':
+                self.send_response(200)
+                self.send_header('Content-type', 'text/html; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(self.get_pdf_preview(file_path).encode())
+                return
+            
             if file_path.suffix.lower() == '.xlsx':
                 self.send_response(200)
                 self.send_header('Content-type', 'text/html; charset=utf-8')
@@ -196,6 +203,46 @@ class PreviewHandler(SimpleHTTPRequestHandler):
     def is_text_file(self, file_path):
         text_extensions = {'.txt', '.py', '.js', '.html', '.css', '.json', '.md', '.sh', '.yaml', '.yml', '.xml', '.log'}
         return file_path.suffix.lower() in text_extensions or file_path.name.startswith('.')
+    
+    def get_pdf_preview(self, file_path):
+        """Generate HTML preview for PDF files"""
+        try:
+            import base64
+            with open(file_path, 'rb') as f:
+                pdf_data = base64.b64encode(f.read()).decode()
+            
+            return f'''<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>{file_path.name}</title>
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; background: #f5f5f5; }}
+        .header {{ padding: 15px; background: #fff; border-bottom: 1px solid #ddd; }}
+        .header h1 {{ margin: 0; font-size: 18px; }}
+        .viewer {{ width: 100%; height: calc(100vh - 60px); }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📄 {file_path.name}</h1>
+    </div>
+    <iframe class="viewer" src="data:application/pdf;base64,{pdf_data}"></iframe>
+</body>
+</html>'''
+        except Exception as e:
+            return f'''<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Error</title>
+</head>
+<body>
+    <h1>Error previewing PDF</h1>
+    <p>{str(e)}</p>
+    <p><a href="/share/">Back to files</a></p>
+</body>
+</html>'''
     
     def get_code_preview(self, file_path):
         try:
