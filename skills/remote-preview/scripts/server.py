@@ -17,9 +17,8 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
-# Use relative path from script location for portability
-SCRIPT_DIR = Path(__file__).parent.parent
-SHARE_DIR = SCRIPT_DIR / 'share'
+# Use ~/.openclaw/share for centralized file storage
+SHARE_DIR = Path.home() / '.openclaw' / 'share'
 SHARE_DIR.mkdir(parents=True, exist_ok=True)
 
 class PreviewHandler(SimpleHTTPRequestHandler):

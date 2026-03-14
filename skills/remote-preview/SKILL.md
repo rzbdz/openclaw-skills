@@ -20,7 +20,7 @@ Replace `<YOUR_SERVER_IP>` with your OpenClaw server's IP address throughout thi
 
 2. **Copy files to share**:
    ```bash
-   cp /path/to/file /root/.openclaw/workspace/skills/remote-preview/share/
+   cp /path/to/file ~/.openclaw/share/
    ```
 
 3. **Generate preview link**:
