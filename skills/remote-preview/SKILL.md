@@ -1,11 +1,15 @@
 ---
 name: remote-preview
-description: Deploy a local file preview server listening on 0.0.0.0:8964. Supports directory tree navigation, syntax-highlighted code/text preview, and XLSX file viewing. Use when you need to share files with Junzhong for remote browser preview via http://panjunzhong.dc.com:8964. Copy files to the share/ directory and provide clickable links.
+description: Deploy a local file preview server listening on 0.0.0.0:8964. Supports directory tree navigation, syntax-highlighted code/text preview, and XLSX file viewing. Use when you need to share files for remote browser preview via http://<YOUR_SERVER_IP>:8964. Copy files to the share/ directory and provide clickable links.
 ---
 
 # Remote Preview Server
 
 Deploy a web-based file preview server for remote file browsing and viewing.
+
+## Configuration
+
+Replace `<YOUR_SERVER_IP>` with your OpenClaw server's IP address throughout this guide.
 
 ## Quick Start
 
@@ -21,7 +25,7 @@ Deploy a web-based file preview server for remote file browsing and viewing.
 
 3. **Generate preview link**:
    ```
-   http://panjunzhong.dc.com:8964/share/filename
+   http://<YOUR_SERVER_IP>:8964/share/filename
    ```
 
 ## Features
@@ -50,19 +54,19 @@ tail -f /tmp/remote-preview.log
 
 ## Workflow
 
-When Junzhong asks to preview a file:
+When sharing files for preview:
 
 1. Copy file to `share/` directory
-2. Generate link: `http://panjunzhong.dc.com:8964/share/<filename>`
-3. Send link via Feishu using message tool with clickable format
+2. Generate link: `http://<YOUR_SERVER_IP>:8964/share/<filename>`
+3. Send link via messaging tool with clickable format
 
 The server auto-detects file types and renders appropriately.
 
-## Sending Clickable Links to Feishu
+## Sending Clickable Links
 
 Use the message tool to send clickable links:
 ```
-message action=send channel=feishu message="[Click to preview](http://panjunzhong.dc.com:8964/share/filename)"
+message action=send message="[Click to preview](http://<YOUR_SERVER_IP>:8964/share/filename)"
 ```
 
 Or send as a formatted card with the link embedded.
