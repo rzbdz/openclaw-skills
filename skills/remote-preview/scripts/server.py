@@ -311,11 +311,17 @@ class PreviewHandler(SimpleHTTPRequestHandler):
 </html>'''
     
     def simple_markdown_to_html(self, text):
-        """Simple markdown to HTML converter without external dependencies"""
+        """Professional markdown to HTML converter without external dependencies"""
         lines = text.split('\n')
         html = []
         in_code_block = False
         code_block = []
+        code_lang = ''
+        in_table = False
+        table_rows = []
+        in_list = False
+        list_items = []
+        list_type = None
         
         i = 0
         while i < len(lines):
@@ -325,11 +331,13 @@ class PreviewHandler(SimpleHTTPRequestHandler):
             if line.strip().startswith('```'):
                 if in_code_block:
                     code_content = '\n'.join(code_block)
-                    html.append(f'<pre><code>{html_module.escape(code_content)}</code></pre>')
+                    html.append(f'<pre><code class="language-{code_lang}">{html_module.escape(code_content)}</code></pre>')
                     code_block = []
                     in_code_block = False
+                    code_lang = ''
                 else:
                     in_code_block = True
+                    code_lang = line.strip()[3:].strip()
                 i += 1
                 continue
             
@@ -338,39 +346,151 @@ class PreviewHandler(SimpleHTTPRequestHandler):
                 i += 1
                 continue
             
-            # Headers
+            # Flush list if needed
+            if in_list and not (line.startswith('- ') or line.startswith('* ') or line.startswith('+ ')):
+                html.append(self.render_list(list_items, list_type))
+                in_list = False
+                list_items = []
+                list_type = None
+            
+            # Flush table if needed
+            if in_table and not (line.strip().startswith('|') or line.strip().startswith('-')):
+                html.append(self.render_table(table_rows))
+                in_table = False
+                table_rows = []
+            
+            # Tables
+            if line.strip().startswith('|'):
+                if not in_table:
+                    in_table = True
+                table_rows.append(line)
+                i += 1
+                continue
+            
+            # Headers (h1-h6)
             if line.startswith('# '):
-                html.append(f'<h1>{html_module.escape(line[2:])}</h1>')
+                html.append(f'<h1>{self.process_inline_markdown(line[2:].strip())}</h1>')
             elif line.startswith('## '):
-                html.append(f'<h2>{html_module.escape(line[3:])}</h2>')
+                html.append(f'<h2>{self.process_inline_markdown(line[3:].strip())}</h2>')
             elif line.startswith('### '):
-                html.append(f'<h3>{html_module.escape(line[4:])}</h3>')
+                html.append(f'<h3>{self.process_inline_markdown(line[4:].strip())}</h3>')
+            elif line.startswith('#### '):
+                html.append(f'<h4>{self.process_inline_markdown(line[5:].strip())}</h4>')
+            elif line.startswith('##### '):
+                html.append(f'<h5>{self.process_inline_markdown(line[6:].strip())}</h5>')
+            elif line.startswith('###### '):
+                html.append(f'<h6>{self.process_inline_markdown(line[7:].strip())}</h6>')
             # Blockquotes
             elif line.startswith('> '):
-                html.append(f'<blockquote>{html_module.escape(line[2:])}</blockquote>')
-            # Lists
-            elif line.startswith('- ') or line.startswith('* '):
-                html.append(f'<li>{self.process_inline_markdown(line[2:])}</li>')
+                html.append(f'<blockquote>{self.process_inline_markdown(line[2:].strip())}</blockquote>')
+            # Task lists
+            elif line.startswith('- [ ] ') or line.startswith('* [ ] '):
+                if not in_list:
+                    in_list = True
+                    list_type = 'task'
+                list_items.append(('unchecked', line[6:].strip()))
+            elif line.startswith('- [x] ') or line.startswith('* [x] '):
+                if not in_list:
+                    in_list = True
+                    list_type = 'task'
+                list_items.append(('checked', line[6:].strip()))
+            # Unordered lists
+            elif line.startswith('- ') or line.startswith('* ') or line.startswith('+ '):
+                if not in_list:
+                    in_list = True
+                    list_type = 'ul'
+                list_items.append(('item', line[2:].strip()))
+            # Ordered lists
+            elif re.match(r'^\d+\.\s', line):
+                if not in_list:
+                    in_list = True
+                    list_type = 'ol'
+                match = re.match(r'^\d+\.\s(.*)', line)
+                list_items.append(('item', match.group(1).strip()))
+            # Horizontal rule
+            elif line.strip() in ('---', '***', '___'):
+                html.append('<hr>')
             # Paragraphs
             elif line.strip():
-                html.append(f'<p>{self.process_inline_markdown(line)}</p>')
+                html.append(f'<p>{self.process_inline_markdown(line.strip())}</p>')
             
             i += 1
         
+        # Flush remaining list or table
+        if in_list:
+            html.append(self.render_list(list_items, list_type))
+        if in_table:
+            html.append(self.render_table(table_rows))
+        
         return '\n'.join(html)
     
+    def render_list(self, items, list_type):
+        """Render list items as HTML"""
+        if list_type == 'task':
+            html = '<ul style="list-style: none; padding-left: 0;">'
+            for status, text in items:
+                checked = 'checked' if status == 'checked' else ''
+                checkbox = f'<input type="checkbox" {checked} disabled style="margin-right: 8px;">'
+                html += f'<li style="margin: 6px 0;">{checkbox}{self.process_inline_markdown(text)}</li>'
+            html += '</ul>'
+        elif list_type == 'ol':
+            html = '<ol>'
+            for _, text in items:
+                html += f'<li>{self.process_inline_markdown(text)}</li>'
+            html += '</ol>'
+        else:  # ul
+            html = '<ul>'
+            for _, text in items:
+                html += f'<li>{self.process_inline_markdown(text)}</li>'
+            html += '</ul>'
+        return html
+    
+    def render_table(self, rows):
+        """Render markdown table as HTML"""
+        if len(rows) < 2:
+            return ''
+        
+        # Parse header
+        header_cells = [cell.strip() for cell in rows[0].split('|')[1:-1]]
+        
+        # Skip separator row (rows[1])
+        
+        # Parse body rows
+        html = '<table style="border-collapse: collapse; width: 100%; margin: 12px 0;">'
+        html += '<thead><tr>'
+        for cell in header_cells:
+            html += f'<th style="border: 1px solid #ddd; padding: 8px; background: #f5f5f5; text-align: left;">{self.process_inline_markdown(cell)}</th>'
+        html += '</tr></thead><tbody>'
+        
+        for row in rows[2:]:
+            if row.strip().startswith('|'):
+                cells = [cell.strip() for cell in row.split('|')[1:-1]]
+                html += '<tr>'
+                for cell in cells:
+                    html += f'<td style="border: 1px solid #ddd; padding: 8px;">{self.process_inline_markdown(cell)}</td>'
+                html += '</tr>'
+        
+        html += '</tbody></table>'
+        return html
+    
     def process_inline_markdown(self, text):
-        """Process inline markdown: bold, italic, links, code"""
-        # Bold
+        """Process inline markdown: bold, italic, links, code, strikethrough"""
+        # Escape HTML first
+        text = html_module.escape(text)
+        # Bold (** or __)
         text = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', text)
         text = re.sub(r'__(.*?)__', r'<strong>\1</strong>', text)
-        # Italic
-        text = re.sub(r'\*(.*?)\*', r'<em>\1</em>', text)
-        text = re.sub(r'_(.*?)_', r'<em>\1</em>', text)
+        # Italic (* or _)
+        text = re.sub(r'\*([^\*]+)\*', r'<em>\1</em>', text)
+        text = re.sub(r'_([^_]+)_', r'<em>\1</em>', text)
+        # Strikethrough (~~)
+        text = re.sub(r'~~(.*?)~~', r'<del>\1</del>', text)
         # Inline code
-        text = re.sub(r'`(.*?)`', r'<code>\1</code>', text)
-        # Links
-        text = re.sub(r'\[(.*?)\]\((.*?)\)', r'<a href="\2">\1</a>', text)
+        text = re.sub(r'`([^`]+)`', r'<code style="background: #f5f5f5; padding: 2px 6px; border-radius: 3px; font-family: monospace;">\1</code>', text)
+        # Links [text](url)
+        text = re.sub(r'\[(.*?)\]\((.*?)\)', r'<a href="\2" style="color: #0066cc; text-decoration: none;">\1</a>', text)
+        # Images ![alt](url)
+        text = re.sub(r'!\[(.*?)\]\((.*?)\)', r'<img src="\2" alt="\1" style="max-width: 100%; height: auto;">', text)
         return text
     
     def get_pdf_preview(self, file_path):
