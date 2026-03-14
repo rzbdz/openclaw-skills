@@ -5,8 +5,10 @@ import json
 import mimetypes
 from pathlib import Path
 from http.server import HTTPServer, SimpleHTTPRequestHandler
-from urllib.parse import unquote, urlparse
+from urllib.parse import unquote, urlparse, parse_qs
 import logging
+import re
+import html as html_module
 
 # Setup logging
 logging.basicConfig(
@@ -62,6 +64,15 @@ class PreviewHandler(SimpleHTTPRequestHandler):
                 self.send_header('Content-type', 'text/html; charset=utf-8')
                 self.end_headers()
                 self.wfile.write(self.get_xlsx_preview(file_path).encode())
+                return
+            
+            # Markdown files
+            if file_path.suffix.lower() == '.md':
+                mode = parse_qs(parsed_path.query).get('mode', ['preview'])[0]
+                self.send_response(200)
+                self.send_header('Content-type', 'text/html; charset=utf-8')
+                self.end_headers()
+                self.wfile.write(self.get_markdown_preview(file_path, mode).encode())
                 return
             
             # Text/code files
@@ -203,8 +214,164 @@ class PreviewHandler(SimpleHTTPRequestHandler):
 </html>'''
     
     def is_text_file(self, file_path):
-        text_extensions = {'.txt', '.py', '.js', '.html', '.css', '.json', '.md', '.sh', '.yaml', '.yml', '.xml', '.log'}
+        text_extensions = {'.txt', '.py', '.js', '.html', '.css', '.json', '.sh', '.yaml', '.yml', '.xml', '.log'}
         return file_path.suffix.lower() in text_extensions or file_path.name.startswith('.')
+    
+    def get_markdown_preview(self, file_path, mode='preview'):
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+        except:
+            content = '[Unable to read file]'
+        
+        if mode == 'source':
+            # Source mode - show raw markdown
+            return f'''<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>{file_path.name}</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <style>
+        body {{ font-family: monospace; margin: 0; background: #282c34; color: #abb2bf; }}
+        .header {{ padding: 15px; background: #21252b; border-bottom: 1px solid #3e4451; display: flex; justify-content: space-between; align-items: center; }}
+        .header h1 {{ margin: 0; font-size: 16px; }}
+        .mode-toggle {{ display: flex; gap: 10px; }}
+        .mode-toggle a {{ padding: 6px 12px; background: #3e4451; color: #abb2bf; text-decoration: none; border-radius: 4px; cursor: pointer; }}
+        .mode-toggle a.active {{ background: #61afef; color: #282c34; }}
+        pre {{ margin: 0; padding: 15px; overflow-x: auto; }}
+        code {{ font-family: 'Monaco', 'Menlo', monospace; }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📄 {file_path.name}</h1>
+        <div class="mode-toggle">
+            <a href="?mode=preview">Preview</a>
+            <a href="?mode=source" class="active">Source</a>
+        </div>
+    </div>
+    <pre><code class="language-markdown">{html_module.escape(content)}</code></pre>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script>hljs.highlightAll();</script>
+</body>
+</html>'''
+        else:
+            # Preview mode - simple markdown to HTML conversion
+            html_content = self.simple_markdown_to_html(content)
+            
+            return f'''<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>{file_path.name}</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; background: #f5f5f5; }}
+        .header {{ padding: 15px 20px; background: #fff; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; align-items: center; }}
+        .header h1 {{ margin: 0; font-size: 18px; }}
+        .mode-toggle {{ display: flex; gap: 10px; }}
+        .mode-toggle a {{ padding: 6px 12px; background: #f0f0f0; color: #0066cc; text-decoration: none; border-radius: 4px; }}
+        .mode-toggle a.active {{ background: #0066cc; color: #fff; }}
+        .mode-toggle a:hover {{ background: #e0e0e0; }}
+        .mode-toggle a.active:hover {{ background: #0052a3; }}
+        .content {{ max-width: 900px; margin: 20px auto; padding: 20px; background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }}
+        .content h1, .content h2, .content h3 {{ margin-top: 24px; margin-bottom: 12px; }}
+        .content h1 {{ font-size: 28px; border-bottom: 2px solid #f0f0f0; padding-bottom: 8px; }}
+        .content h2 {{ font-size: 24px; }}
+        .content h3 {{ font-size: 20px; }}
+        .content p {{ line-height: 1.6; margin: 12px 0; }}
+        .content code {{ background: #f5f5f5; padding: 2px 6px; border-radius: 3px; font-family: monospace; }}
+        .content pre {{ background: #282c34; color: #abb2bf; padding: 12px; border-radius: 4px; overflow-x: auto; }}
+        .content pre code {{ background: none; padding: 0; }}
+        .content blockquote {{ border-left: 4px solid #ddd; margin: 12px 0; padding-left: 12px; color: #666; }}
+        .content ul, .content ol {{ margin: 12px 0; padding-left: 24px; }}
+        .content li {{ margin: 6px 0; }}
+        .content table {{ border-collapse: collapse; width: 100%; margin: 12px 0; }}
+        .content th, .content td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
+        .content th {{ background: #f5f5f5; }}
+        .content a {{ color: #0066cc; text-decoration: none; }}
+        .content a:hover {{ text-decoration: underline; }}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📄 {file_path.name}</h1>
+        <div class="mode-toggle">
+            <a href="?mode=preview" class="active">Preview</a>
+            <a href="?mode=source">Source</a>
+        </div>
+    </div>
+    <div class="content">
+        {html_content}
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script>hljs.highlightAll();</script>
+</body>
+</html>'''
+    
+    def simple_markdown_to_html(self, text):
+        """Simple markdown to HTML converter without external dependencies"""
+        lines = text.split('\n')
+        html = []
+        in_code_block = False
+        code_block = []
+        
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            
+            # Code blocks
+            if line.strip().startswith('```'):
+                if in_code_block:
+                    code_content = '\n'.join(code_block)
+                    html.append(f'<pre><code>{html_module.escape(code_content)}</code></pre>')
+                    code_block = []
+                    in_code_block = False
+                else:
+                    in_code_block = True
+                i += 1
+                continue
+            
+            if in_code_block:
+                code_block.append(line)
+                i += 1
+                continue
+            
+            # Headers
+            if line.startswith('# '):
+                html.append(f'<h1>{html_module.escape(line[2:])}</h1>')
+            elif line.startswith('## '):
+                html.append(f'<h2>{html_module.escape(line[3:])}</h2>')
+            elif line.startswith('### '):
+                html.append(f'<h3>{html_module.escape(line[4:])}</h3>')
+            # Blockquotes
+            elif line.startswith('> '):
+                html.append(f'<blockquote>{html_module.escape(line[2:])}</blockquote>')
+            # Lists
+            elif line.startswith('- ') or line.startswith('* '):
+                html.append(f'<li>{self.process_inline_markdown(line[2:])}</li>')
+            # Paragraphs
+            elif line.strip():
+                html.append(f'<p>{self.process_inline_markdown(line)}</p>')
+            
+            i += 1
+        
+        return '\n'.join(html)
+    
+    def process_inline_markdown(self, text):
+        """Process inline markdown: bold, italic, links, code"""
+        # Bold
+        text = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', text)
+        text = re.sub(r'__(.*?)__', r'<strong>\1</strong>', text)
+        # Italic
+        text = re.sub(r'\*(.*?)\*', r'<em>\1</em>', text)
+        text = re.sub(r'_(.*?)_', r'<em>\1</em>', text)
+        # Inline code
+        text = re.sub(r'`(.*?)`', r'<code>\1</code>', text)
+        # Links
+        text = re.sub(r'\[(.*?)\]\((.*?)\)', r'<a href="\2">\1</a>', text)
+        return text
     
     def get_pdf_preview(self, file_path):
         """Generate HTML preview for PDF files"""

@@ -1,6 +1,6 @@
 ---
 name: remote-preview
-description: Deploy a local file preview server listening on 0.0.0.0:8964. Supports directory tree navigation, syntax-highlighted code/text preview, and XLSX file viewing. Use when you need to share files for remote browser preview via http://<YOUR_SERVER_IP>:8964. Includes systemd service for automatic startup and management. Copy files to the share/ directory and provide clickable links.
+description: Deploy a local file preview server listening on 0.0.0.0:8964. Supports directory tree navigation, syntax-highlighted code/text preview, XLSX file viewing, and markdown rendering with preview/source modes. Use when you need to share files for remote browser preview via http://<YOUR_SERVER_IP>:8964. Includes systemd service for automatic startup and management. Copy files to the share/ directory and provide clickable links.
 ---
 
 # Remote Preview Server
@@ -32,8 +32,27 @@ Replace `<YOUR_SERVER_IP>` with your OpenClaw server's IP address throughout thi
 
 - **Directory tree navigation** - Browse folder structure
 - **Text/code preview** - Syntax highlighting for code files
+- **Markdown rendering** - Two modes:
+  - **Preview mode**: Renders markdown as formatted HTML with styling
+  - **Source mode**: Shows raw markdown code with syntax highlighting
+  - Toggle between modes with buttons in the header
 - **XLSX preview** - View Excel files in table format
 - **Direct file access** - Download any file from share/
+
+## Markdown Support
+
+When viewing `.md` files, the server automatically detects them and provides:
+
+- **Preview Mode** (default): Renders markdown to HTML with support for:
+  - Headers (# ## ###)
+  - Bold and italic text
+  - Code blocks and inline code
+  - Links and blockquotes
+  - Lists and basic formatting
+
+- **Source Mode**: Display raw markdown with syntax highlighting
+
+Click the "Preview" or "Source" buttons in the file header to toggle between modes.
 
 ## Server Management
 
@@ -70,3 +89,4 @@ message action=send message="[Click to preview](http://<YOUR_SERVER_IP>:8964/sha
 ```
 
 Or send as a formatted card with the link embedded.
+
