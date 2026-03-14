@@ -1,6 +1,6 @@
 ---
 name: remote-preview
-description: Deploy a local file preview server listening on 0.0.0.0:8964. Supports directory tree navigation, syntax-highlighted code/text preview, and XLSX file viewing. Use when you need to share files for remote browser preview via http://<YOUR_SERVER_IP>:8964. Copy files to the share/ directory and provide clickable links.
+description: Deploy a local file preview server listening on 0.0.0.0:8964. Supports directory tree navigation, syntax-highlighted code/text preview, and XLSX file viewing. Use when you need to share files for remote browser preview via http://<YOUR_SERVER_IP>:8964. Includes systemd service for automatic startup and management. Copy files to the share/ directory and provide clickable links.
 ---
 
 # Remote Preview Server
